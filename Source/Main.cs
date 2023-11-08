@@ -2,9 +2,10 @@
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using UnityEngine;
 using Verse;
 
@@ -32,6 +33,9 @@ namespace MemCheck
 		static readonly List<Snapshot> snapshots = new() { };
 		static float lastUIScale = -1f, labelWidth = 0f, textHeight = 0f, bottomHeight = 0f;
 
+		static Snapshot GetSnapshot(int idx) => idx == 0 ? current : snapshots[idx - 1];
+		static void RemoveSnapshot(int idx) => snapshots.RemoveAt(idx - 1);
+
 		public static IEnumerable<MethodBase> TargetMethods()
 		{
 			yield return SymbolExtensions.GetMethodInfo((UIRoot_Entry me) => me.DoMainMenu());
@@ -44,42 +48,12 @@ namespace MemCheck
 			if (eventType == EventType.Layout)
 				return;
 
-			var labelBuilder = new StringBuilder();
-			labelBuilder.AppendLine($"    Time:");
-			labelBuilder.AppendLine();
-			labelBuilder.AppendLine($"Used Heap:");
-			labelBuilder.AppendLine($"Mono Heap:");
-			labelBuilder.AppendLine($"Total Allocated:");
-			labelBuilder.AppendLine($"Total Reserved:");
-			labelBuilder.AppendLine($"Total Unused Reserved:");
-			labelBuilder.AppendLine($"Mono Used:");
-			labelBuilder.AppendLine();
-			labelBuilder.AppendLine($"Current Tex:");
-			labelBuilder.AppendLine($"Desired Tex:");
-			labelBuilder.AppendLine($"Non Streaming Tex #:");
-			labelBuilder.AppendLine($"Non Streaming Tex:");
-			labelBuilder.AppendLine($"Streaming Tex #:");
-			labelBuilder.AppendLine($"Target Tex:");
-			labelBuilder.AppendLine($"Total Tex:");
-			labelBuilder.AppendLine();
-			labelBuilder.AppendLine($"Total Runtime Textures:");
-			labelBuilder.AppendLine($"Total Runtime Text Mem:");
-			labelBuilder.AppendLine($"Total Runtime Meshs:");
-			labelBuilder.AppendLine($"Total Runtime Mesh Mem:");
-			labelBuilder.AppendLine();
-			labelBuilder.AppendLine($"Allocated Mem Graphics Driver:");
-			labelBuilder.AppendLine($"Streaming Tex Mipmap Upload #:");
-			labelBuilder.AppendLine($"Streaming Tex Loading #:");
-			labelBuilder.AppendLine($"Streaming Tex Pending Load #:");
-			labelBuilder.AppendLine();
-			labelBuilder.Append($"Target Budget: {QualitySettings.streamingMipmapsMemoryBudget} MB");
-
 			if (DateTime.Now > nextUpdate)
 			{
 				current = new Snapshot();
 				nextUpdate = DateTime.Now.AddMilliseconds(500);
 			}
-			var labels = labelBuilder.ToString();
+			var labels = Snapshot.Labels();
 
 			Text.Font = GameFont.Tiny;
 			GUI.color = Color.white;
@@ -132,38 +106,158 @@ namespace MemCheck
 			}
 
 			var br = new Rect(r.x + labelWidth + padding, r.y + r.height - padding - 22, columnWidth - padding, 22);
-			if (Widgets.ButtonText(br.LeftPartPixels((columnWidth - padding - 5) / 2), "add"))
-				snapshots.Add(current);
-			if (snapshots.Count > 0 && Widgets.ButtonText(br.RightPartPixels((columnWidth - padding - 5) / 2), "tex"))
-				Log.Error($"New textures: " + current.textureNames.Except(snapshots[0].textureNames).Join());
+			if (Widgets.ButtonImageFitted(br.LeftPartPixels((columnWidth - padding - 5) / 2), Assets.addTexture))
+				snapshots.Insert(0, current);
+
+			if (snapshots.Count > 0)
+				if (Widgets.ButtonImageFitted(br.RightPartPixels((columnWidth - padding - 5) / 2).LeftPartPixels(22), Assets.shareTexture))
+					MakeMenu(0);
 
 			r = r.ExpandedBy(-padding);
 			Widgets.Label(r, labels);
 			r.width = columnWidth;
 			r.x += labelWidth;
 			r.height -= bottomHeight;
-			Widgets.Label(r, current.ToString());
+			Widgets.Label(r, current.MainString(snapshots.Count > 0 ? snapshots.First() : null));
 
-			if (snapshots.Count > 0)
-				for (var i = snapshots.Count - 1; i >= 0; i--)
+			for (var idx = 1; idx <= snapshots.Count; idx++)
+			{
+				r.x += columnWidth;
+				br.x += columnWidth;
+				var over = Mouse.IsOver(r);
+				if (over)
 				{
-					r.x += columnWidth;
-					br.x += columnWidth;
-					var over = Mouse.IsOver(r);
-					if (over)
-					{
-						var r2 = new Rect(r.x - 5, r.y - 5, r.width, r.height + 10);
-						Widgets.DrawRectFast(r2, new Color(0, 0, 0, 0.2f));
-					}
-					var str = over ? snapshots[i].ToString(i == snapshots.Count - 1 ? current : snapshots[i + 1]) : snapshots[i].ToString();
-					Widgets.Label(r, str);
-
-					if (Widgets.ButtonText(br.LeftPartPixels((columnWidth - padding - 5) / 2), "del"))
-					{
-						snapshots.RemoveAt(i);
-						break;
-					}
+					var r2 = new Rect(r.x - 5, r.y - 5, r.width, r.height + 10);
+					Widgets.DrawRectFast(r2, new Color(0, 0, 0, 0.2f));
 				}
+				var str = over
+					? GetSnapshot(idx).DiffString(GetSnapshot(idx - 1))
+					: GetSnapshot(idx).MainString(idx < snapshots.Count ? GetSnapshot(idx + 1) : null);
+				Widgets.Label(r, str);
+
+				if (Widgets.ButtonImageFitted(br.LeftPartPixels((columnWidth - padding - 5) / 2), Assets.deleteTexture))
+				{
+					RemoveSnapshot(idx);
+					break;
+				}
+
+				if (idx < snapshots.Count)
+					if (Widgets.ButtonImageFitted(br.RightPartPixels((columnWidth - padding - 5) / 2).LeftPartPixels(22), Assets.shareTexture))
+						MakeMenu(idx);
+			}
+		}
+
+		static void MakeMenu(int idx)
+		{
+			var options = new List<FloatMenuOption>();
+			if (snapshots.Count > 0)
+			{
+				options.Add(new FloatMenuOption("Textures: Log names", () => LogNewTextures(idx)));
+				options.Add(new FloatMenuOption("Textures: Export", () => ExportNewTextures(idx)));
+				options.Add(new FloatMenuOption("Materials: Log names", () => LogNewMaterials(idx)));
+				options.Add(new FloatMenuOption("Materials: Export", () => ExportNewMaterials(idx)));
+				options.Add(new FloatMenuOption("Audio Clips: Log names", () => LogNewAudioClips(idx)));
+				options.Add(new FloatMenuOption("Audio Clips: Export", () => ExportNewAudioClips(idx)));
+				options.Add(new FloatMenuOption("Meshes: Log names", () => LogNewMeshes(idx)));
+			}
+
+			var menu = new FloatMenu(options);
+			Find.WindowStack.Add(menu);
+		}
+
+		static void LogNewTextures(int idx)
+		{
+			var previousTextures = GetSnapshot(idx + 1).textures.Get().OfType<Texture2D>().ToHashSet();
+			var textures = GetSnapshot(idx).textures.Get().OfType<Texture2D>().Except(previousTextures);
+			Log.Error($"New texture names: " + textures.Select(t => t.name).OfType<string>().Join());
+		}
+
+		static void ExportNewTextures(int idx)
+		{
+			var path = Tools.CreateExportFolder();
+			if (path == null)
+				return;
+
+			var previousTextures = GetSnapshot(idx + 1).textures.Get().OfType<Texture2D>().ToHashSet();
+			var textures = GetSnapshot(idx).textures.Get().OfType<Texture2D>().Except(previousTextures);
+			var prefix = $"texture-{DateTime.Now:HHmmss}_";
+
+			var counter = 0;
+			foreach (var texture in textures)
+			{
+				var temp = Tools.CreateReadableCopy(texture);
+				var filename = $"{prefix}{++counter:D6}.png";
+				Tools.SaveTexture(temp, path, filename);
+				UnityEngine.Object.DestroyImmediate(temp);
+			}
+
+			Process.Start(new Uri(path).AbsoluteUri);
+		}
+
+		static void LogNewMaterials(int idx)
+		{
+			var previousMaterials = GetSnapshot(idx + 1).materials.Get().OfType<Material>().ToHashSet();
+			var materials = GetSnapshot(idx).materials.Get().OfType<Material>().Except(previousMaterials);
+			Log.Error($"New material names: " + materials.Select(m => $"{m.name ?? "-"}[{m.mainTexture?.name ?? "-"}]").Join());
+		}
+
+		static void ExportNewMaterials(int idx)
+		{
+			var path = Tools.CreateExportFolder();
+			if (path == null)
+				return;
+
+			var previousMaterials = GetSnapshot(idx + 1).materials.Get().OfType<Material>().ToHashSet();
+			var materials = GetSnapshot(idx).materials.Get().OfType<Material>().Except(previousMaterials);
+			var prefix = $"material-{DateTime.Now:HHmmss}_";
+
+			var counter = 0;
+			foreach (var material in materials)
+			{
+				if (material.mainTexture is not Texture2D texture2D)
+					continue;
+
+				var temp = Tools.CreateReadableCopy(texture2D);
+				var filename = $"{prefix}{++counter:D6}.png";
+				Tools.SaveTexture(temp, path, filename);
+				UnityEngine.Object.DestroyImmediate(temp);
+			}
+
+			Process.Start(new Uri(path).AbsoluteUri);
+		}
+
+		static void LogNewAudioClips(int idx)
+		{
+			var previousAudioClips = GetSnapshot(idx + 1).audioClips.Get().OfType<AudioClip>().ToHashSet();
+			var audioClips = GetSnapshot(idx).audioClips.Get().OfType<AudioClip>().Except(previousAudioClips);
+			Log.Error($"New audio clip names: " + audioClips.Select(m => $"{m.name ?? "-"}[{m.length}s]").Join());
+		}
+
+		static void ExportNewAudioClips(int idx)
+		{
+			var path = Tools.CreateExportFolder();
+			if (path == null)
+				return;
+
+			var previousAudioClips = GetSnapshot(idx + 1).audioClips.Get().OfType<AudioClip>().ToHashSet();
+			var audioClips = GetSnapshot(idx).audioClips.Get().OfType<AudioClip>().Except(previousAudioClips);
+			var prefix = $"audioclip-{DateTime.Now:HHmmss}_";
+
+			var counter = 0;
+			foreach (var audioClip in audioClips)
+			{
+				var filename = $"{prefix}{++counter:D6}.png";
+				SaveWav.Save(filename, path, audioClip);
+			}
+
+			Process.Start(new Uri(path).AbsoluteUri);
+		}
+
+		static void LogNewMeshes(int idx)
+		{
+			var previousMeshes = GetSnapshot(idx + 1).meshes.Get().OfType<Mesh>().ToHashSet();
+			var meshes = GetSnapshot(idx).materials.Get().OfType<Mesh>().Except(previousMeshes);
+			Log.Error($"New mesh names: " + meshes.Select(m => $"{m.name ?? "-"}[{m.triangles.Length}]").Join());
 		}
 	}
 }

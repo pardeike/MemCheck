@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Manifest>
+  <identifier>net.pardeike.rimworld.mod.memcheck</identifier>
+  <version>1.1.0.0</version>
+  <targetVersions>
+    <li>1.4.0</li>
+  </targetVersions>
+  <dependencies>
+  </dependencies>
+  <incompatibleWith>
+  </incompatibleWith>
+  <loadBefore>
+    <li>Core</li>
+  </loadBefore>
+  <loadAfter>
+    <li>Harmony</li>
+  </loadAfter>
+  <manifestUri>https://github.com/pardeike/MemCheck/latest/About/Manifest.xml</manifestUri>
+  <downloadUri>https://github.com/pardeike/MemCheck/releases/latest</downloadUri>
+</Manifest>

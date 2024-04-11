@@ -4,7 +4,7 @@
 		<ModName>MemCheck</ModName>
 		<ModFileName>MemCheck</ModFileName>
 		<Repository>https://github.com/pardeike/MemCheck</Repository>
-		<ModVersion>1.1.0.0</ModVersion>
+		<ModVersion>1.2.0.0</ModVersion>
 		<ProjectGuid>{AC5178F0-16EA-EE7A-B21A-83498DACFE5A}</ProjectGuid>
 	</PropertyGroup>
 

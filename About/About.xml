@@ -4,6 +4,7 @@
   <author>Andreas Pardeike</author>
   <supportedVersions>
     <li>1.4</li>
+    <li>1.5</li>
   </supportedVersions>
   <modDependencies>
     <li>
@@ -14,7 +15,9 @@
     </li>
   </modDependencies>
   <packageId>brrainz.memcheck</packageId>
-  <modVersion>1.1.0.0</modVersion>
+  <modVersion>1.2.0.0</modVersion>
+  <steamAppId>3069064848</steamAppId>
+  <url>https://github.com/pardeike/MemCheck</url>
   <description>Check how much RAM and vRAM your game is using.
 
 Powered by Harmony Patch Library

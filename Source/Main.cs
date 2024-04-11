@@ -3,7 +3,6 @@ using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
@@ -30,7 +29,7 @@ namespace MemCheck
 		static IntVec2 topLeft = new(10, 10), topLeftDrag = IntVec2.Zero;
 		static Vector2 lastMouseDown;
 		static bool isDragging = false;
-		static readonly List<Snapshot> snapshots = new() { };
+		static readonly List<Snapshot> snapshots = [];
 		static float lastUIScale = -1f, labelWidth = 0f, textHeight = 0f, bottomHeight = 0f;
 
 		static Snapshot GetSnapshot(int idx) => idx == 0 ? current : snapshots[idx - 1];
@@ -39,7 +38,14 @@ namespace MemCheck
 		public static IEnumerable<MethodBase> TargetMethods()
 		{
 			yield return SymbolExtensions.GetMethodInfo((UIRoot_Entry me) => me.DoMainMenu());
-			yield return SymbolExtensions.GetMethodInfo(() => DebugTools.DebugToolsOnGUI());
+			MethodInfo method;
+
+			method = AccessTools.Method("Verse.DebugTools:DebugToolsOnGUI");
+			if (method != null)
+				yield return method;
+			method = AccessTools.Method("LudeonTK.DebugTools:DebugToolsOnGUI");
+			if (method != null)
+				yield return method;
 		}
 
 		public static void Postfix()

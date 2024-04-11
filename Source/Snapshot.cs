@@ -75,7 +75,7 @@ namespace MemCheck
 			totalAudioClipCount = allAudioClips.Length;
 		}
 
-		static readonly Color[] colors = new[] { new Color(0.4f, 1f, 0.4f), Color.white, new Color(1f, 0.4f, 0.4f) };
+		static readonly Color[] colors = [new Color(0.4f, 1f, 0.4f), Color.white, new Color(1f, 0.4f, 0.4f)];
 		static string C(long value, long? prevValue, string unit) => $"{value}{unit}".Colorize(prevValue == null ? Color.white : colors[value.CompareTo(prevValue) + 1]);
 
 		public readonly string MainString(Snapshot? prev)

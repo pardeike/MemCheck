@@ -1,6 +1,6 @@
 # MemCheck
 
-See how much RAM and vRAM your game uses.
+Check how much RAM, vRAM, textures and more your game is using. Can make snapshots and compare them. Does export and log objects.
 
 ### License
 

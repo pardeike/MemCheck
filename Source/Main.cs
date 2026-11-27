@@ -15,7 +15,7 @@ namespace MemCheck
 		public MemCheck_Main(ModContentPack content) : base(content)
 		{
 			var harmony = new Harmony("net.pardeike.memcheck");
-			harmony.PatchAll();
+			harmony.PatchAll(Assembly.GetExecutingAssembly());
 
 			CrossPromotion.Install(76561197973010050);
 		}
@@ -262,7 +262,7 @@ namespace MemCheck
 		static void LogNewMeshes(int idx)
 		{
 			var previousMeshes = GetSnapshot(idx + 1).meshes.Get().OfType<Mesh>().ToHashSet();
-			var meshes = GetSnapshot(idx).materials.Get().OfType<Mesh>().Except(previousMeshes);
+			var meshes = GetSnapshot(idx).meshes.Get().OfType<Mesh>().Except(previousMeshes);
 			Log.Error($"New mesh names: " + meshes.Select(m => $"{m.name ?? "-"}[{m.triangles.Length}]").Join());
 		}
 	}
